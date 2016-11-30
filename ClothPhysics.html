@@ -53,7 +53,7 @@
 
         function Node(px, py, pz, ic, jc) {
             //EDIT COLOR HERE
-            var material = new THREE.SpriteMaterial({color:new THREE.Color(1, 1+ic/size, 1+ic/size), opacity: .8});
+            var material = new THREE.SpriteMaterial({color:new THREE.Color(.9, 1+ic/size, 1+ic/size), opacity: 1});
             this.particle = new THREE.Sprite(material);
             //EDIT SIZE HERE
             this.particle.scale.set(102/size,14,1);
