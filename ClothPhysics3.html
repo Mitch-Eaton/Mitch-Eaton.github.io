@@ -1,0 +1,204 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Cloth Tearing</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            background-color: #000000;
+            margin: 0px;
+            overflow: hidden;
+        }
+        a {
+            color:#0078ff;
+        }
+        #info {
+            position: absolute;
+            padding: 10px;
+            width: 100%;
+            text-align: center;
+            color:#ffffff;
+        }
+    </style>
+</head>
+<body>
+<div id="info">Mitch Eaton's Cloth Simulation<br/>
+    <a onclick="cut(size - bottom);">Cut 1 Layer |</a>
+    <a onclick="cut(size - bottom -2);">Cut 3 Layers |</a>
+    <a onclick="pull()">Pull |</a>
+    <a onclick="window.location.reload()">Start Over</a>
+</div>
+<script src="../Common/three.min.js"></script>
+<script src="../Common/js/renderers/CanvasRenderer.js"></script>
+<script src="../Common/js/renderers/Projector.js"></script>
+<script>
+
+    var container;
+    var camera, scene, renderer, particle;
+    var windowHalfX = window.innerWidth / 2;
+    var windowHalfY = window.innerHeight / 2;
+    var allNodes = [];
+    var size = 18;
+    var bottom = 1;
+    init();
+    animate();
+    function init() {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.z = 100;
+        scene = new THREE.Scene();
+
+        function Node(px, py, pz, ic, jc) {
+            //EDIT COLOR HERE
+            var material = new THREE.SpriteMaterial({color:new THREE.Color(.9, 1+ic/size, 1+ic/size), opacity: 1});
+            this.particle = new THREE.Sprite(material);
+            //EDIT SIZE HERE
+            //this.particle.scale.set(102/size,14,1);
+            this.particle.position = new THREE.Vector3();
+            this.particle.position.x = px;
+            this.particle.position.y = py;
+            this.particle.position.z = pz;
+            this.yvelocity = 0;
+            this.xvelocity = 0;
+            this.connectedTo = [];
+            this.icoord = ic;
+            this.jcoord = jc;
+        }
+
+        for (var j = 0; j < size; j++) {
+            for (var i = 0; i < size; i++) {
+                var Node1 = new Node(-50 + 100/size * j, 50 - 100/size * i, 0, i, j);
+                if (i > 0) {
+                    Node1.connectedTo.push(allNodes[allNodes.length - 1]);
+                    (allNodes[allNodes.length - 1]).connectedTo.push(Node1);
+                }
+                if (j > 0) {
+                    Node1.connectedTo.push(allNodes[allNodes.length - size]);
+                    (allNodes[allNodes.length - size]).connectedTo.push(Node1);
+                }
+                scene.add(Node1.particle);
+                allNodes.push(Node1);
+            }
+        }
+        for(var i = 0; i < size*size; i++) {
+            if(i % size != size-1 && i + size + 1 < size*size) {
+                allNodes[size + 1 + i].connectedTo.push(allNodes[i]);
+                allNodes[i].connectedTo.push(allNodes[i + size + 1]);
+            }
+            if(i % size != 0&& i + size - 1 < size*size) {
+                allNodes[i].connectedTo.push(allNodes[i + size - 1]);
+                allNodes[i + size - 1].connectedTo.push(allNodes[i]);
+            }
+
+        }
+
+
+        renderer = new THREE.CanvasRenderer();
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        container.appendChild( renderer.domElement );
+        document.addEventListener( 'touchstart', onDocumentTouchStart, false );
+        document.addEventListener( 'touchmove', onDocumentTouchMove, false );
+        window.addEventListener( 'resize', onWindowResize, false );
+    }
+
+    function gravity(node) {
+        if(node.particle.position.y > -70){
+            node.yvelocity -= 0.01;
+        }
+        else{
+            node.particle.position.y = -69.99;
+            node.yvelocity = 0;
+        }
+    }
+    function spring(node) {
+        for (var i = 0; i < node.connectedTo.length; i++) {
+            satisifyConstraints(node, node.connectedTo[i], 2, 110/size);
+        }
+    }
+    function satisifyConstraints( n1, n2, ky, kx ) {
+        var p1 = n1.particle.position;
+        var p2 = n2.particle.position;
+        var diffX = p2.x - p1.x;
+        var diffY = p2.y - p1.y;
+        var totalDiff = Math.sqrt(diffX * diffX + diffY * diffY);
+        var midX = (p2.x + p1.x)/2;
+        var midY = (p2.y + p1.y)/2;
+        if (Math.abs(diffY) > ky) {
+            n1.yvelocity += (Math.abs(diffY) - ky)/150 * Math.sign(diffY);
+        }
+        if (Math.abs(diffY) > 7 * ky && n1.icoord != 0) {
+            cut(n1.icoord);
+       }
+
+    }
+    function pull(){
+        if(bottom < size-1){
+            for ( var i = 0; i < size; i++) {
+                allNodes[(size - bottom) + size * i].yvelocity += -2;
+                allNodes[(size - bottom-1) + size * i].yvelocity += -1;
+            }
+        }
+    }
+    function cut(s){
+        bottom = Math.max(bottom, size-s+1);
+        for(var i = 0; i < allNodes.length; i++) {
+            for(var j = 0; j < allNodes[i].connectedTo.length; j++){
+                if (allNodes[i].connectedTo[j].icoord % s == 0 && allNodes[i].connectedTo[j].icoord != 0){
+                    allNodes[i].connectedTo[j] = allNodes[i];
+                }
+            }
+        }
+        for(var i = 0; i < allNodes.length; i++) {
+            if (allNodes[i].icoord % s == 0 && allNodes[i].icoord != 0) {
+                allNodes[i].connectedTo = [];
+            }
+        }
+    }
+    function onWindowResize() {
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+    //
+    function onDocumentTouchStart( event ) {
+        if ( event.touches.length > 1 ) {
+            event.preventDefault();
+            mouseX = event.touches[ 0 ].pageX - windowHalfX;
+            mouseY = event.touches[ 0 ].pageY - windowHalfY;
+        }
+    }
+    function onDocumentTouchMove( event ) {
+        if ( event.touches.length == 1 ) {
+            event.preventDefault();
+            mouseX = event.touches[ 0 ].pageX - windowHalfX;
+            mouseY = event.touches[ 0 ].pageY - windowHalfY;
+        }
+    }
+    //
+    function animate() {
+        requestAnimationFrame(animate);
+        for (var i = 0; i < allNodes.length; i++) {
+            if (i % size != 0) {
+                spring(allNodes[i]);
+                gravity(allNodes[i]);
+            }
+            allNodes[i].particle.position.y += allNodes[i].yvelocity;
+            allNodes[i].yvelocity *= .94; //damping
+            //allNodes[i].particle.position.x += allNodes[i].xvelocity;
+            //allNodes[i].xvelocity *= .99; //damping
+        }
+        render();
+    }
+    function render() {
+        camera.lookAt( scene.position );
+        renderer.render( scene, camera );
+    }
+</script>
+</body>
+</html>
