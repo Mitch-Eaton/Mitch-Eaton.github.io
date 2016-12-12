@@ -27,7 +27,8 @@
 <div id="info">Mitch Eaton's Cloth Simulation<br/>
     <a onclick="cut(size - bottom);">Cut 1 Layer |</a>
     <a onclick="cut(size - bottom -2);">Cut 3 Layers |</a>
-    <a onclick="pull()">Pull |</a>
+    <a onclick="pull(1)">Pull Left |</a>
+    <a onclick="pull(-1)">Pull Right |</a>
     <a onclick="window.location.reload()">Start Over</a>
 </div>
 <script src="../Common/three.min.js"></script>
@@ -144,13 +145,13 @@
 
 
     }
-    function pull(){
+    function pull(d){
         if(bottom < size-1){
             for ( var i = 0; i < size; i++) {
                 allNodes[(size - bottom) + size * i].yvelocity += -2;
                 allNodes[(size - bottom-1) + size * i].yvelocity += -1;
-                allNodes[(size - bottom) + size * i].xvelocity += -1;
-                allNodes[(size - bottom-1) + size * i].xvelocity += -.5;
+                allNodes[(size - bottom) + size * i].xvelocity += -1*d;
+                allNodes[(size - bottom-1) + size * i].xvelocity += -.5*d;
             }
         }
     }
