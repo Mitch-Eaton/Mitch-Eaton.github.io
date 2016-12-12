@@ -20,21 +20,37 @@
             width: 100%;
             text-align: center;
             color:#ffffff;
+            font-size: 20px;
         }
     </style>
 </head>
 <body>
 <div id="info">Mitch Eaton's Cloth Simulation<br/>
-    <a onclick="cut(size - bottom);">Cut 1 Layer |</a>
-    <a onclick="cut(size - bottom -2);">Cut 3 Layers |</a>
-    <a onclick="pull()">Pull |</a>
-    <a onclick="window.location.reload()">Start Over</a><br/>
-<a href="https://github.com/Mitch-Eaton/Mitch-Eaton.github.io/blob/master/ClothPhysics.html">Source</a>
+    You'll notice there is a slight breeze present in the simulation.<br/>
+    The left arrow key allows you to rotate the camera.<br/>
+    'Cut' buttons manually remove rows from the bottom.<br/>
+    'Pull' buttons pull on the cloth in the indicated direction.<br/>
+    If you pull too hard, the cloth might rip!<br/><br/>
+    <button onclick="cut(size - bottom);">Cut 1 Layer</button>
+    <button onclick="if(size - bottom -2 > 0)cut(size - bottom -2);">Cut 3 Layers</button>
+    <button onclick="pull(1)">Pull Left</button>
+    <button onclick="pull(-1)">Pull Right</button>
+    <button onclick="pull(0)">Pull Down</button>
+    <button onclick="window.location.reload()">Start Over</button>
 </div>
 <script src="../Common/three.min.js"></script>
 <script src="../Common/js/renderers/CanvasRenderer.js"></script>
 <script src="../Common/js/renderers/Projector.js"></script>
 <script>
+    /**
+     * Code is inspired by Mr. Doob's Cloth Canvas Example
+     * Almost all code is original, (OnWindowResize and the like are copied from Mr. Doob's example.)
+     * All nodes are connected by invisible, 2-way springs.
+     * If adjacent nodes are separated too far (via pulling / gravity) the spring "breaks" (Is permanently deleted.)
+     * Using the 'Cut' Buttons after ripping the cloth via pulling may result in un-interesting events.
+     * Slight wind is simulated in the Z direction only to maintain performance.
+     *
+     */
 
     var container;
     var camera, scene, renderer, particle;
@@ -49,19 +65,20 @@
         container = document.createElement('div');
         document.body.appendChild(container);
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
-        camera.position.z = 100;
+        camera.position.z = 150;
         scene = new THREE.Scene();
 
         function Node(px, py, pz, ic, jc) {
             //EDIT COLOR HERE
-            var material = new THREE.SpriteMaterial({color:new THREE.Color(.9, 1+ic/size, 1+ic/size), opacity: 1});
+            var material = new THREE.SpriteMaterial({color:new THREE.Color(1, jc/size, ic/size), opacity: 1});
             this.particle = new THREE.Sprite(material);
             //EDIT SIZE HERE
-            this.particle.scale.set(102/size,14,1);
+            //this.particle.scale.set(102/size,14,2);
             this.particle.position = new THREE.Vector3();
             this.particle.position.x = px;
             this.particle.position.y = py;
             this.particle.position.z = pz;
+            this.zvelocity = 0;
             this.yvelocity = 0;
             this.xvelocity = 0;
             this.connectedTo = [];
@@ -107,17 +124,17 @@
     }
 
     function gravity(node) {
-        if(node.particle.position.y > -70){
+        if(node.particle.position.y > -80){
             node.yvelocity -= 0.01;
         }
         else{
-            node.particle.position.y = -69.99;
+            node.particle.position.y = -79.99;
             node.yvelocity = 0;
         }
     }
     function spring(node) {
         for (var i = 0; i < node.connectedTo.length; i++) {
-            satisifyConstraints(node, node.connectedTo[i], 2, 110/size);
+            satisifyConstraints(node, node.connectedTo[i], 2, 100/size);
         }
     }
     function satisifyConstraints( n1, n2, ky, kx ) {
@@ -125,22 +142,41 @@
         var p2 = n2.particle.position;
         var diffX = p2.x - p1.x;
         var diffY = p2.y - p1.y;
+        var diffZ = p2.z - p1.z;
+        var diag = Math.sqrt(kx * kx + ky * ky);
         var totalDiff = Math.sqrt(diffX * diffX + diffY * diffY);
         var midX = (p2.x + p1.x)/2;
         var midY = (p2.y + p1.y)/2;
+
         if (Math.abs(diffY) > ky) {
             n1.yvelocity += (Math.abs(diffY) - ky)/150 * Math.sign(diffY);
         }
-        if (Math.abs(diffY) > 7 * ky && n1.icoord != 0) {
-            cut(n1.icoord);
-       }
+        if (n1.jcoord == n2.jcoord && Math.abs(diffX) > 0) {
+            n1.xvelocity += (Math.abs(diffX))/100 * Math.sign(diffX);
+        }
+        if (Math.abs(diffX) > kx) {
+            n1.xvelocity += (Math.abs(diffX) - kx)/150 * Math.sign(diffX);
+        }
+        if (Math.abs(diffZ) > 0) {
+            n1.zvelocity += (Math.abs(diffZ))/300 * Math.sign(diffZ);
+        }
+        if (totalDiff > 4 * diag && n1.icoord != 0) {
+            slice(n1, n2);
+        }
+
 
     }
-    function pull(){
+    function pull(d){
         if(bottom < size-1){
             for ( var i = 0; i < size; i++) {
-                allNodes[(size - bottom) + size * i].yvelocity += -2;
-                allNodes[(size - bottom-1) + size * i].yvelocity += -1;
+                if(d == 0) {
+                    allNodes[(size - bottom) + size * i].yvelocity += -2;
+                    allNodes[(size - bottom - 1) + size * i].yvelocity += -1;
+                }
+                else {
+                    allNodes[(size - bottom) + size * i].xvelocity += -1 * d;
+                    allNodes[(size - bottom - 1) + size * i].xvelocity += -.5 * d;
+                }
             }
         }
     }
@@ -158,6 +194,10 @@
                 allNodes[i].connectedTo = [];
             }
         }
+    }
+    function slice(n1, n2){
+        n1.connectedTo.splice(n1.connectedTo.indexOf(n2),1);
+        n2.connectedTo.splice(n2.connectedTo.indexOf(n1),1);
     }
     function onWindowResize() {
         windowHalfX = window.innerWidth / 2;
@@ -182,17 +222,36 @@
         }
     }
     //
+
+    var onKeyDown = function ( event ) {
+        switch ( event.keyCode ) {
+
+            case 37: // left
+                scene.rotateY(.02);
+                break;
+
+            case 39: // right
+                camera.rotateY(-.02);
+                break;
+        }
+    };
+    document.addEventListener( 'keydown', onKeyDown, false );
+    var r = 0;
     function animate() {
         requestAnimationFrame(animate);
+        r++;
         for (var i = 0; i < allNodes.length; i++) {
+            spring(allNodes[i]);
             if (i % size != 0) {
-                spring(allNodes[i]);
                 gravity(allNodes[i]);
+                allNodes[i].particle.position.y += allNodes[i].yvelocity;
+                allNodes[i].yvelocity *= .94; //damping
+                allNodes[i].particle.position.x += allNodes[i].xvelocity;
+                allNodes[i].xvelocity *= .97; //damping
+                if (r % 10 == 0 && allNodes[i].particle.position.y > -79) allNodes[i].zvelocity += .1 * Math.sin(r/100) * ((i / allNodes.length)-.5) * ((i % size) / size);
+                allNodes[i].particle.position.z += allNodes[i].zvelocity;
+                allNodes[i].zvelocity *= .91; //damping
             }
-            allNodes[i].particle.position.y += allNodes[i].yvelocity;
-            allNodes[i].yvelocity *= .94; //damping
-            //allNodes[i].particle.position.x += allNodes[i].xvelocity;
-            //allNodes[i].xvelocity *= .99; //damping
         }
         render();
     }
