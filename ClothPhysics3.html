@@ -53,7 +53,7 @@
 
         function Node(px, py, pz, ic, jc) {
             //EDIT COLOR HERE
-            var material = new THREE.SpriteMaterial({color:new THREE.Color(.9, 1+ic/size, 1+ic/size), opacity: 1});
+            var material = new THREE.SpriteMaterial({color:new THREE.Color(1, jc/size, jc/size), opacity: .8});
             this.particle = new THREE.Sprite(material);
             //EDIT SIZE HERE
             //this.particle.scale.set(102/size,14,1);
@@ -116,7 +116,7 @@
     }
     function spring(node) {
         for (var i = 0; i < node.connectedTo.length; i++) {
-            satisifyConstraints(node, node.connectedTo[i], 2, 110/size);
+            satisifyConstraints(node, node.connectedTo[i], 2, 100/size);
         }
     }
     function satisifyConstraints( n1, n2, ky, kx ) {
@@ -124,15 +124,24 @@
         var p2 = n2.particle.position;
         var diffX = p2.x - p1.x;
         var diffY = p2.y - p1.y;
+        var diag = Math.sqrt(kx * kx + ky * ky);
         var totalDiff = Math.sqrt(diffX * diffX + diffY * diffY);
         var midX = (p2.x + p1.x)/2;
         var midY = (p2.y + p1.y)/2;
+
         if (Math.abs(diffY) > ky) {
             n1.yvelocity += (Math.abs(diffY) - ky)/150 * Math.sign(diffY);
         }
+        if (n1.jcoord == n2.jcoord && Math.abs(diffX) > 0) {
+            n1.xvelocity += (Math.abs(diffX))/100 * Math.sign(diffX);
+        }
+        if (Math.abs(diffX) > kx) {
+            n1.xvelocity += (Math.abs(diffX) - kx)/150 * Math.sign(diffX);
+        }
         if (Math.abs(diffY) > 7 * ky && n1.icoord != 0) {
             cut(n1.icoord);
-       }
+        }
+
 
     }
     function pull(){
@@ -140,6 +149,8 @@
             for ( var i = 0; i < size; i++) {
                 allNodes[(size - bottom) + size * i].yvelocity += -2;
                 allNodes[(size - bottom-1) + size * i].yvelocity += -1;
+                allNodes[(size - bottom) + size * i].xvelocity += -1;
+                allNodes[(size - bottom-1) + size * i].xvelocity += -.5;
             }
         }
     }
@@ -184,14 +195,14 @@
     function animate() {
         requestAnimationFrame(animate);
         for (var i = 0; i < allNodes.length; i++) {
+            spring(allNodes[i]);
             if (i % size != 0) {
-                spring(allNodes[i]);
                 gravity(allNodes[i]);
+                allNodes[i].particle.position.y += allNodes[i].yvelocity;
+                allNodes[i].yvelocity *= .94; //damping
+                allNodes[i].particle.position.x += allNodes[i].xvelocity;
+                allNodes[i].xvelocity *= .94; //damping
             }
-            allNodes[i].particle.position.y += allNodes[i].yvelocity;
-            allNodes[i].yvelocity *= .94; //damping
-            //allNodes[i].particle.position.x += allNodes[i].xvelocity;
-            //allNodes[i].xvelocity *= .99; //damping
         }
         render();
     }
